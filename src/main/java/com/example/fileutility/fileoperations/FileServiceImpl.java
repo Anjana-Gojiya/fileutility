@@ -3,18 +3,17 @@ package com.example.fileutility.fileoperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,6 +32,11 @@ public class FileServiceImpl implements FileService {
     private static final Set<String> validExtensions = new HashSet<>(Arrays.asList("jpg", "jpeg", "png", "pdf", "xlsx", "xls", "doc", "docx"));
     private static final long MAX_FILE_SIZE = 1024L * 1024L * 1024L;
     private int failedUploadCount;
+    private WebClient webClient;
+
+    public FileServiceImpl(WebClient webClient) {
+        this.webClient = webClient;
+    }
 
     @Override
     public ResponseEntity<FileResponse> uploadMultipleFile(List<MultipartFile> files, String userId) {
@@ -149,5 +153,49 @@ public class FileServiceImpl implements FileService {
             }
         }
         return null;
+    }
+
+    @Override
+    public ResponseEntity downloadFileUsingWebClient() {
+        String baseUrl = "https://www.tutorialspoint.com/java/java_tutorial.pdf";
+        Flux<DataBuffer> flux = webClient
+                .get()
+                .uri(baseUrl)
+                .retrieve()
+                .bodyToFlux(DataBuffer.class);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=demo3.pdf");
+
+        // Create the StreamingResponseBody to stream the Flux<DataBuffer> content
+        StreamingResponseBody responseBody = outputStream ->
+                DataBufferUtils.write(flux, outputStream)
+                        .doOnError(error -> {
+                            throw new RuntimeException(error.getMessage());
+                        })
+                        .then(Mono.fromRunnable(() -> {
+                            try {
+                                outputStream.flush();
+                            } catch (IOException e) {
+                                // Handle flush exception
+                                throw new RuntimeException("Error occurred while flushing the output stream: " + e.getMessage());
+                            }
+                        }))
+                        .then(Mono.fromRunnable(() -> {
+                            try {
+                                outputStream.close();
+                            } catch (IOException e) {
+                                // Handle close exception
+                                throw new RuntimeException("Error occurred while closing the output stream: " + e.getMessage());
+                            }
+                        }))
+                        .subscribe();
+
+        // Return the ResponseEntity with headers and the StreamingResponseBody
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(responseBody);
+
     }
 }

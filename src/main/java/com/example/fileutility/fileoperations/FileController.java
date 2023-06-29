@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -41,5 +42,10 @@ public class FileController {
     public ResponseEntity<StreamingResponseBody> downloadFile(@RequestParam("fileName") String fileName,
                                                               @RequestParam("userId") String userId){
         return fileService.downloadFile(fileName,userId);
+    }
+
+    @GetMapping("/download-webclient")
+    public ResponseEntity downloadFileUsingWebClient(){
+        return fileService.downloadFileUsingWebClient();
     }
 }
