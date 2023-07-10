@@ -1,8 +1,11 @@
 package com.example.fileutility.s3bucketdemo;
 
+import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.*;
 import org.apache.commons.io.FileUtils;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
+import java.util.Date;
 import java.util.List;
 
 @RestController
@@ -61,5 +66,32 @@ public class ObjectController {
                 bucketTargetName,
                 objectName
         );
+    }
+
+    @GetMapping("get-download-link")
+    public ResponseEntity objectDownloadLink(String bucketName, String objectKey){
+        java.util.Date expiration = new java.util.Date();
+        long expTimeMillis = expiration.getTime();
+        expTimeMillis += 1000 * 60 * 60;
+        expiration.setTime(expTimeMillis);
+        ResponseHeaderOverrides responseHeaderOverrides = new ResponseHeaderOverrides();
+        responseHeaderOverrides.setContentDisposition("attachment");
+
+        GeneratePresignedUrlRequest generatePresignedUrlRequest =
+                new GeneratePresignedUrlRequest(bucketName, objectKey)
+                        .withMethod(HttpMethod.GET)
+                        .withExpiration(expiration)
+                        .withResponseHeaders(responseHeaderOverrides);
+
+        URL url = amazonS3Client.generatePresignedUrl(generatePresignedUrlRequest);
+//        var date = new Date(new Date().getTime() + 300 * 1000);
+//
+//        URL url = amazonS3Client.generatePresignedUrl(bucketName,objectKey, date);
+        System.out.println(url.toString());
+
+        String fileName = objectKey.substring(objectKey.lastIndexOf("/") + 1);
+
+        return ResponseEntity.ok()
+                .body(url.toString());
     }
 }
